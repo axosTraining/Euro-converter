@@ -1,48 +1,80 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, FlatList, StyleSheet, Text, TextInput, View, Image } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker';
 
 export default function App() {
-  const [ingridient, setIngridient] = useState('');
-  const [meals, setMeals] = useState([]);
+  const [amount, setAmount] = useState('');
+  const [currencies, setCurrencies] = useState([]);
+  const [currency, setCurrency] = useState('USD');
+  const [open, setOpen] = useState(false);
+  const [convertedAmount, setConvertedAmount] = useState('');
 
-  const getMeals = () => {
-    if (ingridient !== '') {
-      fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?i=${ingridient}`)
-        .then(response => response.json())
-        .then(data => setMeals(data.meals))
-        .catch(error => {
-          Alert.alert('Error', error);
+  const fetchSymbols = () => {
+    let currenciesVar = [];
+    fetch('https://api.apilayer.com/exchangerates_data/symbols',
+      {
+        method: 'GET',
+        headers: { 'apikey': 'seWxD50j144lstzwyeW7Cjt7mNqNxzb8' }
+      })
+      .then(response => response.json())
+      .then(data => {
+        Object.keys(data.symbols).forEach((key, index) => {
+          currenciesVar.push({ value: key, label: key });
         });
+        setCurrencies(currenciesVar);
+      })
+      .catch(err => console.error(err));
+  }
+
+  useEffect(() => {
+    fetchSymbols();
+  }, []);
+
+  const convert = () => {
+    fetch(`https://api.apilayer.com/exchangerates_data/convert?to=EUR&from=${currency}&amount=${amount}`,
+      {
+        method: 'GET',
+        headers: { 'apikey': 'seWxD50j144lstzwyeW7Cjt7mNqNxzb8' }
+      })
+      .then(response => response.json())
+      .then(data => {
+        setConvertedAmount(data.result);
+      })
+      .catch(err => console.error(err));
+  }
+
+  const convertValue = () => {
+    if (isNaN(amount)) {
+      alert('Please type in the amount');
     } else {
-      alert('Please fill in the ingridient');
+      convert();
     }
   }
 
-
   return (
     <View style={styles.container}>
-      <TextInput
-        style={styles.textfield}
-        placeholder='ingridient'
-        onChangeText={text => setIngridient(text)}
-        value={ingridient}
+      {convertedAmount !== '' && <Text>{convertedAmount} EUR</Text>}
+      <View style={{ flexDirection: 'row', gap: 30, justifyContent: 'center', marginLeft: '50%' }}>
+        <TextInput
+          style={styles.textfield}
+          onChangeText={currValue => setAmount(parseInt(currValue))}
+          value={amount}
+          keyboardType='numeric'
+        />
+        <DropDownPicker
+          style={{ width: 100, height: 30 }}
+          open={open}
+          value={currency}
+          items={currencies}
+          setOpen={setOpen}
+          setValue={setCurrency}
+          setItems={setCurrencies}
+        />
+      </View>
+      <Button
+        title="Convert"
+        onPress={convertValue}
       />
-      <Button title="Find" onPress={getMeals} />
-      {meals !== null && <FlatList
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) =>
-          <View>
-            <Text
-              style={{ fontSize: 18, fontWeight: "bold" }}>{item.strMeal}
-            </Text>
-            <Image
-              style={{ width: 250, height: 250 }}
-              source={{ uri: item.strMealThumb }}
-            />
-          </View>}
-        data={meals}
-      />}
-      {meals === null && <Text>There are no meals with {ingridient} ingridient</Text>}
     </View>
   );
 }
@@ -54,10 +86,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 20
   },
   textfield:
   {
-    height: 30,
+    height: 50,
     width: 200,
     borderColor: 'gray',
     borderWidth: 1
